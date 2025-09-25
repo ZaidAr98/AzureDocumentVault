@@ -9,8 +9,8 @@ namespace DocumentVault.Services.CosmosDbService
 
         public CosmosDbService(CosmosClient cosmosClient, IConfiguration configuration)
         {
-            var databaseName = configuration["Azure:CosmosDB:DatabaseName"];
-            var containerName = configuration["Azure:CosmosDB:ContainerName"];
+            var databaseName = configuration["CosmosDb:DatabaseName"];
+            var containerName = configuration["CosmosDb:DocumentsContainerName"];
             _container = cosmosClient.GetContainer(databaseName, containerName);
         }
 

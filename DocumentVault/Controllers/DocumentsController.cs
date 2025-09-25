@@ -1,8 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿
+using Microsoft.AspNetCore.Mvc;
 using DocumentVault.Services.DocumentService;
 using DocumentVault.Services.CosmosDbService;
 using DocumentVault.Models;
 using System.ComponentModel.DataAnnotations;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 
 namespace DocumentVault.Controllers
 {
@@ -13,18 +16,23 @@ namespace DocumentVault.Controllers
         private readonly IDocumentService _documentService;
         private readonly ICosmosDbService _cosmosDbService;
         private readonly ILogger<DocumentsController> _logger;
+        private readonly IConfiguration _configuration;
+
 
         public DocumentsController(
             IDocumentService documentService,
             ICosmosDbService cosmosDbService,
-            ILogger<DocumentsController> logger)
+            ILogger<DocumentsController> logger,
+              IConfiguration configuration)
         {
             _documentService = documentService;
             _cosmosDbService = cosmosDbService;
             _logger = logger;
+            _configuration = configuration;
+
         }
 
-        
+
         [HttpPost("upload")]
         public async Task<IActionResult> UploadDocument(
             [Required] IFormFile file,
@@ -158,5 +166,9 @@ namespace DocumentVault.Controllers
                 return StatusCode(500, new { error = "An error occurred while searching documents" });
             }
         }
+
+
+        
+       
     }
 }

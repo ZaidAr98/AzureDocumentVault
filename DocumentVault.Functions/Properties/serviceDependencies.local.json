@@ -1,0 +1,19 @@
+{
+  "dependencies": {
+    "appInsights1": {
+      "type": "appInsights.sdk"
+    },
+    "storage1": {
+      "type": "storage.emulator",
+      "connectionId": "AzureWebJobsStorage"
+<<<<<<< HEAD
+=======
+    },
+    "compute1": {
+      "group": "connections",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Web/sites/DocumentVault",
+      "type": "compute.function"
+>>>>>>> 206c474d411dfb55c795ef3b244822ef0380124d
+    }
+  }
+}

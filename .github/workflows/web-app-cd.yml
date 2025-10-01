@@ -1,0 +1,119 @@
+﻿name: DocumentVault CI/CD
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+env:
+  RESOURCE_GROUP: documentvault-rg-as
+  IMAGE_NAME: docvault-web
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    # 1. Checkout source code
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    # 2. Authenticate with Azure
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID_CA }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    # 3. Get Azure resource names dynamically
+    - name: Get Azure Resources
+      id: resources
+      run: |
+        APP_NAME=$(az webapp list --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[?contains(name, 'zaidapp')].name" -o tsv | head -1)
+        
+        REGISTRY=$(az acr list --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[?contains(name, 'zaidacr')].name" -o tsv | head -1)
+        
+        FUNCTION_APP=$(az functionapp list --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query "[?contains(name, 'zaidfunc')].name" -o tsv | head -1)
+        
+        echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
+        echo "REGISTRY=$REGISTRY" >> $GITHUB_OUTPUT
+        echo "FUNCTION_APP=$FUNCTION_APP" >> $GITHUB_OUTPUT
+        
+        echo "Found App Service: $APP_NAME"
+        echo "Found Registry: $REGISTRY"
+        echo "Found Function App: $FUNCTION_APP"
+    
+    # 4. Log in to ACR for docker push
+    - name: Azure ACR Login
+      run: |
+        az acr login --name ${{ steps.resources.outputs.REGISTRY }}
+    
+    # 5. Build and Push Docker Images (immutable + latest)
+    - name: Build and Push Docker Images
+      run: |
+        IMAGE=${{ steps.resources.outputs.REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.run_id }}
+        IMAGE_LATEST=${{ steps.resources.outputs.REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+        
+        echo "Building and pushing $IMAGE and $IMAGE_LATEST"
+        
+        docker build -t $IMAGE -t $IMAGE_LATEST ./DocumentVault
+        docker push $IMAGE
+        docker push $IMAGE_LATEST
+        
+        echo "IMAGE_LATEST=$IMAGE_LATEST" >> $GITHUB_ENV
+    
+    # 6. Deploy to App Service
+    - name: Deploy Container to App Service
+      run: |
+        az webapp config container set \
+          --name ${{ steps.resources.outputs.APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --container-image-name ${{ env.IMAGE_LATEST }}
+        
+        az webapp restart \
+          --name ${{ steps.resources.outputs.APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }}
+        
+        echo "✅ Deployed Web App: ${{ env.IMAGE_LATEST }}"
+    
+    # 7. Setup .NET for Function App
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+    
+    # 8. Build and Publish Function App
+    - name: Build Function App
+      run: |
+        cd DocumentVault.Functions
+        dotnet restore
+        dotnet build --configuration Release --no-restore
+        dotnet publish --configuration Release --output ./output --no-build
+
+    # 9. Create deployment package
+    - name: Create Function App ZIP
+      run: |
+        cd DocumentVault.Functions/output
+        zip -r ../function-app.zip .
+    
+    # 10. Deploy Function App
+    - name: Deploy to Azure Functions
+      run: |
+        az functionapp deployment source config-zip \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name ${{ steps.resources.outputs.FUNCTION_APP }} \
+          --src DocumentVault.Functions/function-app.zip \
+          --timeout 300
+    
+        echo "✅ Deployed Function App: ${{ steps.resources.outputs.FUNCTION_APP }}"
+    
+        # Wait a moment for deployment to complete
+        sleep 10
+    
+        # Restart to ensure new code is loaded
+        az functionapp restart \
+          --name ${{ steps.resources.outputs.FUNCTION_APP }} \
+          --resource-group ${{ env.RESOURCE_GROUP }}

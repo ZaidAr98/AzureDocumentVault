@@ -1,0 +1,10 @@
+{
+	"IsEncrypted": false,
+	"Values": {
+		"AzureWebJobsStorage": "UseDevelopmentStorage=true",
+		"FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+		"CosmosDB_DatabaseName": "DocumentVaultDB",
+		"CosmosDB_ContainerName": "Links",
+		"CosmosDB_ConnectionString": "AccountEndpoint=https://your-account.documents.azure.com:443/;AccountKey=your-key;"
+	}
+}
